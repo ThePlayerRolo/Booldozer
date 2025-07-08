@@ -59,7 +59,9 @@ void LEnemyDOMNode::RenderDetailsUI(float dt)
 
     ImGui::InputInt("Room Number", &mRoomNumber);
 
-    LUIUtility::RenderComboBox("Enemy Type", LResUtility::GetNameMap("enemies"), mName);
+    if(LUIUtility::RenderComboBox("Enemy Type", LResUtility::GetNameMap("enemies"), mName)){
+        LEditorScene::GetEditorScene()->LoadActor(mName, false);
+    }
     LUIUtility::RenderTooltip("What kind of enemy this actor is.");
 
     // Strings
@@ -250,10 +252,10 @@ void LEnemyDOMNode::PreProcess()
             auto furnitureNodes = parentShared->GetChildrenOfType<LFurnitureDOMNode>(EDOMNodeType::Furniture);
 
             // Grab the index of the furniture node in the list of furniture. Report an error if it doesn't exist, because that shouldn't happen.
-            ptrdiff_t furnitureIndex = LGenUtility::VectorIndexOf(furnitureNodes, furnitureShared);
+            std::ptrdiff_t furnitureIndex = LGenUtility::VectorIndexOf(furnitureNodes, furnitureShared);
             if (furnitureIndex == -1)
             {
-                std::cout << "[EnemyDOMNode]: Tried to set furniture access name to nonexistent furniture node!";
+                LGenUtility::Log << "[EnemyDOMNode]: Tried to set furniture access name to nonexistent furniture node!";
                 return;
             }
 
@@ -282,7 +284,7 @@ void LEnemyDOMNode::PreProcess()
         auto itemAppearNodes = mapNodeLocked->GetChildrenOfType<LItemAppearDOMNode>(EDOMNodeType::ItemAppear);
 
         auto lockedItemRef = mItemTableRef.lock();
-        ptrdiff_t index = LGenUtility::VectorIndexOf(itemAppearNodes, lockedItemRef);
+        std::ptrdiff_t index = LGenUtility::VectorIndexOf(itemAppearNodes, lockedItemRef);
 
         if (index == -1)
             mItemTableIndex = 0;

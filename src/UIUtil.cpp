@@ -56,7 +56,7 @@ bool LUIUtility::RenderNodeSelectable(LDOMNodeBase* node, const bool& highlight)
 {
     bool s = highlight;
 
-    ImGui::Selectable(node->GetName().c_str(), &s);
+    ImGui::Selectable(std::format("{}##{}", node->GetName(), node->GetID()).c_str(), &s);
 
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
     {
@@ -397,6 +397,7 @@ namespace ImGui {
         window->DrawList->AddCircleFilled(ImVec2(pos.x + circleEnd - o1, bb.Min.y + r), r, bg_col);
         window->DrawList->AddCircleFilled(ImVec2(pos.x + circleEnd - o2, bb.Min.y + r), r, bg_col);
         window->DrawList->AddCircleFilled(ImVec2(pos.x + circleEnd - o3, bb.Min.y + r), r, bg_col);
+		return true;
     }
 
     bool Spinner(const char* label, float radius, int thickness, const ImU32& color) {

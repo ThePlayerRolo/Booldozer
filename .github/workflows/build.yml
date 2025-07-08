@@ -25,18 +25,18 @@ jobs:
             architecture: x64
             artifact: linux
             upload_path_suffix: '/*'
-    
+
     runs-on: ${{ matrix.os }}
-    
+
     defaults:
       run:
         shell: bash
-    
+
     env:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: true
-    
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Install dependencies
@@ -51,9 +51,9 @@ jobs:
         uses: lukka/get-cmake@latest
       - name: Setup vcpkg
         if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@v11.1
+        uses: lukka/run-vcpkg@v11.5
         with:
-          vcpkgGitCommitId: 'ad46340bfce415333d6a2139592c22a499fb0df0'
+          vcpkgGitCommitId: '80d54ff62d528339c626a6fbc3489a7f25956ade'
           vcpkgDirectory: '${{ github.workspace }}/vcpkg'
           vcpkgJsonGlob: '**/vcpkg.json'
       - name: Integrate vcpkg
@@ -83,13 +83,13 @@ jobs:
           cp build/*.dll booldozer-build
       - name: Upload App Windows
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: booldozer-windows
           path: booldozer-build
       - name: Upload App Linux
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: booldozer-linux
           path: booldozer-build

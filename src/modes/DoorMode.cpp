@@ -26,12 +26,44 @@ void LDoorMode::RenderLeafContextMenu(std::shared_ptr<LDoorDOMNode> node)
 	ImGui::EndPopup();
 }
 
-void LDoorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
+void LDoorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map, EEditorMode& mode)
 {
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar;
 	ImGui::Begin("sceneHierarchy", 0, window_flags);
-	ImGui::Text("Doors");
-	ImGui::Separator();
+	//ImGui::Text("Doors");
+	//ImGui::Separator();
+	
+	if(ImGui::BeginTabBar("##modeTabs")){
+		if(ImGui::BeginTabItem("Actors")){
+			mode = EEditorMode::Actor_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Waves")){
+			mode = EEditorMode::Enemy_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Doors")){
+			mode = EEditorMode::Door_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Paths")){
+			mode = EEditorMode::Path_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Items")){
+			mode = EEditorMode::Item_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Events")){
+			mode = EEditorMode::Event_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Boos")){
+			mode = EEditorMode::Boo_Mode;
+			ImGui::EndTabItem();
+		}
+		ImGui::EndTabBar();
+	}
 
 	auto doors = current_map->GetChildrenOfType<LDoorDOMNode>(EDOMNodeType::Door);
 
@@ -73,20 +105,24 @@ void LDoorMode::RenderDetailsWindow()
 {
 	ImGui::Begin("detailWindow");
 
-	if (mSelectionManager.IsMultiSelection())
-		ImGui::Text("[Multiple Selection]");
-	else if (mSelectionManager.GetPrimarySelection() != nullptr)
-		std::static_pointer_cast<LUIRenderDOMNode>(mSelectionManager.GetPrimarySelection())->RenderDetailsUI(0);
+	if(mPreviousSelection == mSelectionManager.GetPrimarySelection()){
+		if (mSelectionManager.IsMultiSelection())
+			ImGui::Text("[Multiple Selection]");
+		else if (mSelectionManager.GetPrimarySelection() != nullptr)
+			std::static_pointer_cast<LUIRenderDOMNode>(mSelectionManager.GetPrimarySelection())->RenderDetailsUI(0);
+	} else if(mPreviousSelection != nullptr){
+		std::static_pointer_cast<LUIRenderDOMNode>(mPreviousSelection)->RenderDetailsUI(0);
+	}
 
 	ImGui::End();
 }
 
-void LDoorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene)
+void LDoorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene, EEditorMode& mode)
 {
 	ImGuiWindowClass mainWindowOverride;
 	mainWindowOverride.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoTabBar;
 	ImGui::SetNextWindowClass(&mainWindowOverride);
-	RenderSceneHierarchy(current_map);
+	RenderSceneHierarchy(current_map, mode);
 
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 	RenderDetailsWindow();
@@ -100,19 +136,30 @@ void LDoorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* r
 void LDoorMode::RenderGizmo(LEditorScene* renderer_scene){
 	if (mSelectionManager.GetPrimarySelection() != nullptr)
 	{
-		glm::mat4* m = ((LBGRenderDOMNode*)(mSelectionManager.GetPrimarySelection().get()))->GetMat();
-		glm::mat4 view = renderer_scene->getCameraView();
-		glm::mat4 proj = renderer_scene->getCameraProj();
-		ImGuizmo::Manipulate(&view[0][0], &proj[0][0], mGizmoMode, ImGuizmo::WORLD, &(*m)[0][0], NULL, NULL);
+
+		if(!mSelectionManager.GetPrimarySelection()->IsNodeType(EDOMNodeType::Door)){
+			mSelectionManager.ClearSelection();
+		} else {
+			glm::mat4* m = ((LBGRenderDOMNode*)(mSelectionManager.GetPrimarySelection().get()))->GetMat();
+			glm::mat4 view = renderer_scene->getCameraView();
+			glm::mat4 proj = renderer_scene->getCameraProj();
+			ImGuizmo::Manipulate(&view[0][0], &proj[0][0], mGizmoMode, ImGuizmo::WORLD, &(*m)[0][0], NULL, NULL);
+			
+			auto rooms = std::dynamic_pointer_cast<LDoorDOMNode>(mSelectionManager.GetPrimarySelection())->GetRoomReferences();
+			if(rooms.first != nullptr && rooms.second != nullptr && (!renderer_scene->HasRoomLoaded(rooms.first->GetRoomNumber())|| !renderer_scene->HasRoomLoaded(rooms.second->GetRoomNumber()))){
+				renderer_scene->SetRoom(rooms.first);
+			}
+		}
 	}
+	mPreviousSelection = mSelectionManager.GetPrimarySelection();
 }
 
 void LDoorMode::OnBecomeActive()
 {
-	std::cout << "[Booldozer]: Door mode switching in" << std::endl;
+	LGenUtility::Log << "[Booldozer]: Door mode switching in" << std::endl;
 }
 
 void LDoorMode::OnBecomeInactive()
 {
-	std::cout << "[Booldozer]: Door mode switching out" << std::endl;
+	LGenUtility::Log << "[Booldozer]: Door mode switching out" << std::endl;
 }

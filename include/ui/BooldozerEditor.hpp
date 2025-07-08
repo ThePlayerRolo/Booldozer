@@ -16,18 +16,6 @@
 #include <memory>
 #include <json.hpp>
 
-enum class EEditorMode : uint32_t
-{
-	Actor_Mode,
-	Enemy_Mode,
-	Door_Mode,
-	Path_Mode,
-	Item_Mode,
-	Event_Mode,
-	Boo_Mode,
-	Collision_Mode,
-};
-
 // Backend for the main window's UI.
 class LBooldozerEditor
 {
@@ -52,6 +40,13 @@ class LBooldozerEditor
 	bool bInitialized { false };
 
 	bool mOnStartPopup { false };
+	bool mSaveMapClicked { false };
+	bool mClickedMapSelect { false };
+	bool mClickedMapClear { false };
+	bool mSaveConfigsClicked { false };
+	int32_t mSelectedMap { -1 };
+	int32_t mMapNameDialogEditingNameIdx { -1 };
+	std::string mMapNameDialogEditingNameStr { "" };
 
 	uint32_t mMainDockSpaceID { 0 };
 	uint32_t mDockNodeLeftID { 0 };
@@ -74,7 +69,6 @@ class LBooldozerEditor
 	void SaveMapToArchive(std::string file_path);
 
 	void RenderNoRootPopup();
-
 public:
 	LBooldozerEditor();
 	~LBooldozerEditor();
@@ -91,13 +85,17 @@ public:
 
 	void onAppendMapCB();
 
+	void onClearMapCB();
+
 	// Callback for when the user requests to open one or more room arcs.
 	void onOpenRoomsCB();
 
 	// Callback for when the user requests to save a map
 	void onSaveMapCB();
 	void onSaveMapArchiveCB();
+	void onGCMExportCB();
 
+	void SaveActorConfigs();
 	void onPlaytestCB();
 
 	LEditorSelection* GetSelectionManager() { return mCurrentMode->GetSelectionManager(); }
@@ -107,6 +105,9 @@ public:
 	// Switches the current mode to the given new one.
 	void ChangeMode();
 
-	bool mOpenRootFlag { false };
-
+	bool mOpenActorEditor { false };
+	bool mOpenControlsDialog { false };
+	bool mOpenBannerEditor { false };
+	bool mOpenProjectManager { false };
+	bool mOpenMenuEditor { false };
 };

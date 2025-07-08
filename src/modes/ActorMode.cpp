@@ -5,6 +5,10 @@
 #include "IconsForkAwesome.h"
 #include "UIUtil.hpp"
 #include "Options.hpp"
+#include "history/Mat4HistoryItem.hpp"
+#include "history/RoomBoundsHistoryItem.hpp"
+#include "history/RoomMoveHistoryItem.hpp"
+#include <glm/gtx/matrix_decompose.hpp>
 
 //#include <DiscordIntegration.hpp>
 
@@ -17,14 +21,45 @@ LActorMode::LActorMode()
 	mRoomChanged = false;
 }
 
-void LActorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
+void LActorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map, EEditorMode& mode)
 {
 	
 	ImGui::Begin("sceneHierarchy", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
+	if(ImGui::BeginTabBar("##modeTabs")){
+		if(ImGui::BeginTabItem("Actors")){
+			mode = EEditorMode::Actor_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Waves")){
+			mode = EEditorMode::Enemy_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Doors")){
+			mode = EEditorMode::Door_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Paths")){
+			mode = EEditorMode::Path_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Items")){
+			mode = EEditorMode::Item_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Events")){
+			mode = EEditorMode::Event_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Boos")){
+			mode = EEditorMode::Boo_Mode;
+			ImGui::EndTabItem();
+		}
+		ImGui::EndTabBar();
+	}
+
 	ImGui::Text("Rooms");
 	ImGui::SameLine();
-	
 
 	ImGui::Text(ICON_FK_PLUS_CIRCLE);
 	if(ImGui::IsItemClicked(0)){
@@ -33,13 +68,18 @@ void LActorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
 		std::shared_ptr<LRoomDOMNode> newRoom = std::make_shared<LRoomDOMNode>(std::format("Room {}", rooms.size() + 1));
 		std::shared_ptr<LRoomDataDOMNode> newRoomData = std::make_shared<LRoomDataDOMNode>(std::format("Room {}", rooms.size() + 1));
 
-		std::string resourcePathRoot = std::filesystem::path(rooms[0]->GetChildrenOfType<LRoomDataDOMNode>(EDOMNodeType::RoomData)[0]->GetResourcePath()).parent_path().string();
+		std::string resourcePathRoot = "";
+		if(rooms.size() == 0){
+			resourcePathRoot = (std::filesystem::path("Iwamoto") / std::format("map{}", current_map->GetMapNumber())).string();
+		} else {
+			resourcePathRoot = std::filesystem::path(rooms[0]->GetChildrenOfType<LRoomDataDOMNode>(EDOMNodeType::RoomData)[0]->GetResourcePath()).parent_path().string();
+		}
 
 		newRoomData->SetRoomResourcePath(std::format("{}/room_{:02}.arc", resourcePathRoot, rooms.size() + 1));
 
 		// for some reason filesystem path wasnt working to build this path so for now just build it manually...
 		std::string resPathInRoot = std::format("{}/{}/{}", OPTIONS.mRootPath, "files", newRoomData->GetResourcePath());
-		std::cout << "[ActorMode]: Room resource path " << resPathInRoot << std::endl;
+		LGenUtility::Log << "[ActorMode]: Room resource path " << resPathInRoot << std::endl;
 		if(!std::filesystem::exists(resPathInRoot)){
 			std::shared_ptr<Archive::Rarc> arc = Archive::Rarc::Create();
 			std::shared_ptr<Archive::Folder> root = Archive::Folder::Create(arc);
@@ -50,6 +90,7 @@ void LActorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
 
 		newRoomData->SetRoomID(rooms.size());
 		newRoomData->SetRoomIndex(rooms.size());
+		newRoomData->GetAdjacencyList().push_back(newRoom);
 		newRoom->AddChild(newRoomData);
 
 		newRoom->SetRoomNumber(rooms.size());
@@ -74,11 +115,10 @@ void LActorMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
 	}
 
 	LUIUtility::RenderTooltip("EXPERIMENTAL: Please *backup rooms.map*, as room ids/indicies may get shuffled by accident!");
-	
-	ImGui::Separator();
+	//ImGui::Separator();
 
-	ImGui::Text("Current Room");
-	mRoomChanged = LUIUtility::RenderNodeReferenceCombo("##selectedRoom", EDOMNodeType::Room, current_map, mManualRoomSelect);
+	//ImGui::Text("Current Room");
+	//mRoomChanged = LUIUtility::RenderNodeReferenceCombo("##selectedRoom", EDOMNodeType::Room, current_map, mManualRoomSelect);
 
 	uint32_t i = 0;
 	current_map->ForEachChildOfType<LRoomDOMNode>(EDOMNodeType::Room, [i, this](std::shared_ptr<LRoomDOMNode> room) mutable {
@@ -106,15 +146,32 @@ void LActorMode::RenderDetailsWindow()
 	ImGui::Text("Object Details");
 	ImGui::Separator();
 
-	if (mSelectionManager.IsMultiSelection())
-		ImGui::Text("[Multiple Selection]");
-	else if (mSelectionManager.GetPrimarySelection() != nullptr)
-		std::static_pointer_cast<LUIRenderDOMNode>(mSelectionManager.GetPrimarySelection())->RenderDetailsUI(0);
+	if(mPreviousSelection == mSelectionManager.GetPrimarySelection()){
+		if (mSelectionManager.IsMultiSelection()){
+			ImGui::Text("[Multiple Selection]");
+			/* Some WIP multi selection
+			ImGui::BeginTabBar("##multiSelectionTabs");
+
+			for(auto item : mSelectionManager.GetSelection()){
+				if(ImGui::BeginTabItem(std::format("{}##{}", item->GetName(), item->GetID()).c_str())){
+					std::static_pointer_cast<LUIRenderDOMNode>(item)->RenderDetailsUI(0);
+					ImGui::EndTabItem();
+				}
+			}
+
+			ImGui::EndTabBar();
+			*/
+		}
+		else if (mSelectionManager.GetPrimarySelection() != nullptr)
+			std::static_pointer_cast<LUIRenderDOMNode>(mSelectionManager.GetPrimarySelection())->RenderDetailsUI(0);
+	} else if(mPreviousSelection != nullptr){
+		std::static_pointer_cast<LUIRenderDOMNode>(mPreviousSelection)->RenderDetailsUI(0);
+	}
 
 	ImGui::End();
 }
 
-void LActorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene)
+void LActorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene, EEditorMode& mode)
 {
 
 	//LUIUtility::RenderGizmoToggle();
@@ -122,7 +179,7 @@ void LActorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* 
 	ImGuiWindowClass mainWindowOverride;
 	mainWindowOverride.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoTabBar;
 	ImGui::SetNextWindowClass(&mainWindowOverride);
-	RenderSceneHierarchy(current_map);
+	RenderSceneHierarchy(current_map, mode);
 
 	if(roomsUpdated){
 		renderer_scene->SetRoom(current_map->GetChildrenOfType<LRoomDOMNode>(EDOMNodeType::Room).front());
@@ -130,8 +187,9 @@ void LActorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* 
 	}
 
 	ImGui::SetNextWindowClass(&mainWindowOverride);
+	
 	RenderDetailsWindow();
-
+	
 	for(auto& node : current_map.get()->GetChildrenOfType<LBGRenderDOMNode>(EDOMNodeType::BGRender)){
 		node->RenderBG(0);
 	}
@@ -146,17 +204,9 @@ void LActorMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* 
 }
 
 void LActorMode::RenderGizmo(LEditorScene* renderer_scene){
-	if(ImGui::IsKeyPressed(ImGuiKey_1)){
-		mGizmoMode = ImGuizmo::OPERATION::TRANSLATE;
-	} else if (ImGui::IsKeyPressed(ImGuiKey_2)){
-		mGizmoMode = ImGuizmo::OPERATION::ROTATE;
-	} else if (ImGui::IsKeyPressed(ImGuiKey_3)){
-		mGizmoMode = ImGuizmo::OPERATION::SCALE;
-	}
-
 	if(mSelectionManager.GetPrimarySelection() != nullptr){
-		if(mPreviousSelection == nullptr || mPreviousSelection != mSelectionManager.GetPrimarySelection()){
-			mPreviousSelection = mSelectionManager.GetPrimarySelection();
+		if(mPreviousSelection != nullptr && mPreviousSelection != mSelectionManager.GetPrimarySelection()){
+			ImGui::SetWindowFocus(nullptr);
 			if(!mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).expired() && !renderer_scene->HasRoomLoaded(mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock()->GetRoomNumber())){
 				renderer_scene->SetRoom(mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock());				
 				mManualRoomSelect = mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room);
@@ -168,19 +218,54 @@ void LActorMode::RenderGizmo(LEditorScene* renderer_scene){
 		
 		if(mSelectionManager.GetPrimarySelection()->GetNodeType() != EDOMNodeType::Room){
 			glm::mat4* m = static_cast<LBGRenderDOMNode*>(mSelectionManager.GetPrimarySelection().get())->GetMat();
-			glm::mat4 delta(1.0);
+			glm::mat4 delta(1.0f);
 			if(ImGuizmo::Manipulate(&view[0][0], &proj[0][0], mGizmoMode, ImGuizmo::WORLD, &(*m)[0][0], &delta[0][0], NULL)){
+				if(!mGizmoWasUsing){ // if we we arent already using the gizmo, invert the transform this just did and set that as the original transform
+					mOriginalTransform = *m * glm::inverse(delta);
+				}
+				
 				for(auto node : mSelectionManager.GetSelection()){
 					if(node != mSelectionManager.GetPrimarySelection()){
-						(*dynamic_pointer_cast<LBGRenderDOMNode>(node)->GetMat()) = (*dynamic_pointer_cast<LBGRenderDOMNode>(node)->GetMat()) * delta;
+						(*dynamic_pointer_cast<LBGRenderDOMNode>(node)->GetMat()) *= delta;
 					}
+
 					EDOMNodeType type = node->GetNodeType();
 					if(type == EDOMNodeType::PathPoint || type == EDOMNodeType::Event  || type == EDOMNodeType::Observer || type == EDOMNodeType::Object){
-						renderer_scene->UpdateRenderers();
+						renderer_scene->SetDirty();
 						break;
 					}
 				}
+
+				mGizmoWasUsing = true;
 			}
+
+			if(!ImGuizmo::IsUsing() && mGizmoWasUsing){ //finished using the gizmo, add a history item
+
+				// snap objects to room bounds
+				std::shared_ptr<LRoomDataDOMNode> curRoom = mSelectionManager.GetPrimarySelection()->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock()->GetChildrenOfType<LRoomDataDOMNode>(EDOMNodeType::RoomData)[0];
+				for(auto node : mSelectionManager.GetSelection()){
+					glm::mat4* transform = dynamic_pointer_cast<LBGRenderDOMNode>(node)->GetMat();
+					if((*transform)[3].x < curRoom->GetMin().x){
+						(*transform)[3].x = curRoom->GetMin().x + 0.01f;
+					} else if((*transform)[3].x > curRoom->GetMax().x){
+						(*transform)[3].x = curRoom->GetMax().x - 0.01f;
+					}
+					if((*transform)[3].y < curRoom->GetMin().y){
+						(*transform)[3].y = curRoom->GetMin().y + 0.01f;
+					} else if((*transform)[3].y > curRoom->GetMax().y){
+						(*transform)[3].y = curRoom->GetMax().y - 0.01f;
+					}
+					if((*transform)[3].z < curRoom->GetMin().z){
+						(*transform)[3].z = curRoom->GetMin().z + 0.01f;
+					} else if((*transform)[3].z > curRoom->GetMax().z){
+						(*transform)[3].z = curRoom->GetMax().z - 0.01f;
+					}
+				}
+
+				mHistoryManager.AddUndoItem(std::make_shared<LMat4HistoryItem>(std::static_pointer_cast<LBGRenderDOMNode>(mSelectionManager.GetPrimarySelection()), mOriginalTransform));
+				mGizmoWasUsing = false;
+			}
+
 		} else {
 			std::shared_ptr<LRoomDOMNode> curRoom = dynamic_pointer_cast<LRoomDOMNode>(mSelectionManager.GetPrimarySelection());
 			if(prevRoom != curRoom){
@@ -205,15 +290,27 @@ void LActorMode::RenderGizmo(LEditorScene* renderer_scene){
 			}
 
 			if(ImGuizmo::Manipulate(&view[0][0], &proj[0][0], ImGuizmo::OPERATION::TRANSLATE, ImGuizmo::WORLD, &(mat)[0][0], &(deltaMat)[0][0], NULL)){
-				renderer_scene->UpdateRenderers();
+				renderer_scene->SetDirty();
 				
 				if(ImGui::IsKeyDown(ImGuiKey_LeftAlt)){
+					if(!mGizmoWasUsing){
+						mGizmoTranslationDelta = data->GetMin();
+						mOriginalRoomBoundMin = true;
+						mRoomBoundEdited = true;
+					}
 					data->SetMin(mat[3]);
 				}
 				else if(ImGui::IsKeyDown(ImGuiKey_LeftCtrl)){
+					if(!mGizmoWasUsing){
+						mGizmoTranslationDelta = data->GetMax();
+						mOriginalRoomBoundMin = false;
+						mRoomBoundEdited = true;
+					}
 					data->SetMax(mat[3]);
 				} else {
+					mRoomBoundEdited = false;
 					glm::vec3 translation = glm::vec3(deltaMat[3]);
+					mGizmoTranslationDelta += translation;
 					// add delta to max and min
 					data->SetMax(data->GetMax() + translation);
 					data->SetMin(data->GetMin() + translation);
@@ -228,18 +325,40 @@ void LActorMode::RenderGizmo(LEditorScene* renderer_scene){
 						child->SetPosition(child->GetPosition() + translation);
 					}
 				}
+				mGizmoWasUsing = true;
+			}
+
+			if(!ImGuizmo::IsUsing() && mGizmoWasUsing){ 
+				if(mRoomBoundEdited){
+					mHistoryManager.AddUndoItem(std::make_shared<LRoomBoundsHistoryItem>(data, mGizmoTranslationDelta, mOriginalRoomBoundMin, renderer_scene));
+				} else {
+					mHistoryManager.AddUndoItem(std::make_shared<LRoomMoveHistoryItem>(std::static_pointer_cast<LRoomDOMNode>(mSelectionManager.GetPrimarySelection()), mGizmoTranslationDelta, renderer_scene));
+				}
+				mGizmoTranslationDelta = {0,0,0};
+				mGizmoWasUsing = false;
 			}
 
 		}
 	}
+
+	if(!ImGui::GetIO().WantTextInput){
+		if(ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_Z)){
+			mHistoryManager.PerformUndo();
+		}
+
+		if(ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyDown(ImGuiKey_LeftShift) && ImGui::IsKeyPressed(ImGuiKey_Z)){
+			mHistoryManager.PerformRedo();
+		}
+	}
+	mPreviousSelection = mSelectionManager.GetPrimarySelection();
 }
 
 void LActorMode::OnBecomeActive()
 {
-	std::cout << "[Booldozer]: Actor mode switching in!\n" << std::endl;
+	LGenUtility::Log << "[Booldozer]: Actor mode switching in!\n" << std::endl;
 }
 
 void LActorMode::OnBecomeInactive()
 {
-	std::cout << "[Booldozer]: Actor mode switching out!\n" << std::endl;
+	LGenUtility::Log << "[Booldozer]: Actor mode switching out!\n" << std::endl;
 }

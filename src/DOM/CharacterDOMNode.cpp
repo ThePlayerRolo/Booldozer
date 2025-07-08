@@ -22,7 +22,9 @@ void LCharacterDOMNode::RenderDetailsUI(float dt)
 	LUIUtility::RenderTransformUI(mTransform.get(), mPosition, mRotation, mScale);
 
 	// Strings
-	LUIUtility::RenderTextInput("Character Name", &mName);
+	if(LUIUtility::RenderTextInput("Character Name", &mName)){
+		LEditorScene::GetEditorScene()->LoadActor(mName, false);
+	}
 	LUIUtility::RenderTooltip("What character this entity is.");
 
 	LUIUtility::RenderTextInput("Spawn Group", &mCreateName);
@@ -186,7 +188,7 @@ void LCharacterDOMNode::PreProcess()
 		auto itemAppearNodes = mapNodeLocked->GetChildrenOfType<LItemAppearDOMNode>(EDOMNodeType::ItemAppear);
 
 		auto lockedItemRef = mItemTableRef.lock();
-		ptrdiff_t index = LGenUtility::VectorIndexOf(itemAppearNodes, lockedItemRef);
+		std::ptrdiff_t index = LGenUtility::VectorIndexOf(itemAppearNodes, lockedItemRef);
 
 		if (index == -1)
 			mItemTableIndex = 0;

@@ -1,4 +1,5 @@
 #include "ui/BooldozerApp.hpp"
+#include "GenUtil.hpp"
 #include "ui/LInput.hpp"
 #include "TimeUtil.hpp"
 #include "UIUtil.hpp"
@@ -9,9 +10,13 @@
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_glfw.h"
+#include <fstream>
 #include <iostream>
 
 #include <IconsForkAwesome.h>
+#include "stb_image.h"
+#include "icon.h"
+#include "constants.hpp"
 
 constexpr int GL_VERSION_MAJOR = 4;
 constexpr int GL_VERSION_MINOR = 6;
@@ -25,14 +30,17 @@ namespace {
 LBooldozerApp::LBooldozerApp() : mWindow(nullptr) {}
 
 void DealWithGLErrors(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam) {
-	//std::cout << "GL CALLBACK: " << message << std::endl;
+	//LGenUtility::Log << "GL CALLBACK: " << message << std::endl;
 }
 
 bool LBooldozerApp::Setup() {
-    
+    InitResourcePaths();
+
+    LGenUtility::Log = std::fstream((USER_DATA_PATH / "booldozer.log").string(), std::ios::out);
+
 	// Init GLFW
 	if (!glfwInit()) {
-		std::cout << "[Booldozer]: Failed to init GLFW!" << std::endl;
+		LGenUtility::Log << "[Booldozer]: Failed to init GLFW!" << std::endl;
 		return false;
 	}
 
@@ -48,11 +56,16 @@ bool LBooldozerApp::Setup() {
 		const char* err;
 		glfwGetError(&err);
 
-		std::cout << "[Booldozer]: Failed to create GLFW window!" << std::endl;
-		std::cout << "[Booldozer]: " << err << std::endl;
+		LGenUtility::Log << "[Booldozer]: Failed to create GLFW window!" << std::endl;
+		LGenUtility::Log << "[Booldozer]: " << err << std::endl;
 		glfwTerminate();
 		return false;
 	}
+
+	GLFWimage images[1];
+	images[0].pixels = stbi_load_from_memory(icon_png, icon_png_size, &images[0].width, &images[0].height, nullptr, 4);
+	glfwSetWindowIcon(mWindow, 1, images);
+	stbi_image_free(images[0].pixels);
 
 	// Set up input callbacks
 	glfwSetKeyCallback(mWindow, LInput::GLFWKeyCallback);
@@ -63,7 +76,7 @@ bool LBooldozerApp::Setup() {
 	// Set up GLAD
 	glfwMakeContextCurrent(mWindow);
 	gladLoadGL();
-	
+
 	glfwSwapInterval(1);
 
 	// Set up GL debug error handling.
@@ -78,19 +91,19 @@ bool LBooldozerApp::Setup() {
 	ImGui::StyleColorsDark();
 	ImGui_ImplGlfw_InitForOpenGL(mWindow, true);
 	ImGui_ImplOpenGL3_Init("#version 150");
-	
-	
-	if(std::filesystem::exists((std::filesystem::current_path() / "res" / "font" / "NotoSansJP-Regular.otf"))){
-		io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res" / "font" / "NotoSansJP-Regular.otf").string().c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+
+
+	if(std::filesystem::exists((RES_BASE_PATH / "font" / "NotoSansJP-Regular.otf"))){
+		io.Fonts->AddFontFromFileTTF((RES_BASE_PATH / "font" / "NotoSansJP-Regular.otf").string().c_str(), 16.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
 	}
 
-	if(std::filesystem::exists((std::filesystem::current_path() / "res" / "font" / "forkawesome.ttf"))){
+	if(std::filesystem::exists((RES_BASE_PATH / "font" / "forkawesome.ttf"))){
 		static const ImWchar icons_ranges[] = { ICON_MIN_FK, ICON_MAX_16_FK, 0 };
-		ImFontConfig icons_config; 
-		icons_config.MergeMode = true; 
-		icons_config.PixelSnapH = true; 
+		ImFontConfig icons_config;
+		icons_config.MergeMode = true;
+		icons_config.PixelSnapH = true;
 		icons_config.GlyphMinAdvanceX = 14.0f;
-		io.Fonts->AddFontFromFileTTF((std::filesystem::current_path() / "res" / "font" / "forkawesome.ttf").string().c_str(), icons_config.GlyphMinAdvanceX, &icons_config, icons_ranges );
+		io.Fonts->AddFontFromFileTTF((RES_BASE_PATH / "font" / "forkawesome.ttf").string().c_str(), icons_config.GlyphMinAdvanceX, &icons_config, icons_ranges );
 	}
 
 	mEditorScene.Init();
@@ -182,57 +195,33 @@ void LBooldozerApp::RenderUI(float deltaTime) {
     // Menu bar
     if (ImGui::BeginMainMenuBar())
     {
-        if (ImGui::BeginMenu("File"))
+		if (ImGui::MenuItem("Projects")){
+			mEditorContext.mOpenProjectManager = true;
+		}
+        if (ImGui::BeginMenu("Map"))
         {
-            if (ImGui::MenuItem("Open Map..."))
+            if (ImGui::MenuItem(ICON_FK_MAP "  Open"))
                 mEditorContext.onOpenMapCB();
-            if (ImGui::MenuItem("Append Map..."))
+            if (ImGui::MenuItem(ICON_FK_PLUS "  Append"))
                 mEditorContext.onAppendMapCB();
 
             ImGui::Separator();
+			if (ImGui::MenuItem(ICON_FK_ERASER "  Clear"))
+                mEditorContext.onClearMapCB();
 
-			if (ImGui::MenuItem("Save Map..."))
+			ImGui::Separator();
+
+			if (ImGui::MenuItem(ICON_FK_FLOPPY_O "  Save"))
                 mEditorContext.onSaveMapArchiveCB();
+
+			if (ImGui::MenuItem(ICON_FK_SHARE "  Export GCM"))
+                mEditorContext.onGCMExportCB();
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edit"))
         {
-			if(ImGui::MenuItem("Actors")){
-				mEditorContext.CurrentMode = EEditorMode::Actor_Mode;
-				mEditorContext.ChangeMode();
-			}
-			if(ImGui::MenuItem("Doors")){
-				mEditorContext.CurrentMode = EEditorMode::Door_Mode;
-				mEditorContext.ChangeMode();
-			}
-			if(ImGui::MenuItem("Items")){
-				mEditorContext.CurrentMode = EEditorMode::Item_Mode;
-				mEditorContext.ChangeMode();
-			}
-			if(ImGui::MenuItem("Waves")){
-				mEditorContext.CurrentMode = EEditorMode::Enemy_Mode;
-				mEditorContext.ChangeMode();
-			}
-
-			if(ImGui::MenuItem("Paths")){
-				mEditorContext.CurrentMode = EEditorMode::Path_Mode;
-				mEditorContext.ChangeMode();
-			}
-
-			if(ImGui::MenuItem("Events")){
-				mEditorContext.CurrentMode = EEditorMode::Event_Mode;
-				mEditorContext.ChangeMode();
-			}
-
-			if(ImGui::MenuItem("Boos")){
-				mEditorContext.CurrentMode = EEditorMode::Boo_Mode;
-				mEditorContext.ChangeMode();
-			}
-
-
-			ImGui::Separator();
-            if (ImGui::MenuItem("Options"))
+            if (ImGui::MenuItem(ICON_FK_COG "  Options"))
                 openOptionsMenu = true;
 
 
@@ -240,28 +229,35 @@ void LBooldozerApp::RenderUI(float deltaTime) {
         }
         if (ImGui::BeginMenu("Tools"))
         {
-			if	(ImGui::MenuItem("Ghost Config Editor"))
-				mEditorContext.mGhostConfigs.mParamToolOpen = true; //bad
-            if (ImGui::MenuItem("Playtest"))
+			if	(ImGui::MenuItem(ICON_FK_C "  Ghost Config Editor")){
+				mEditorContext.mOpenActorEditor = true;
+			}
+			if	(ImGui::MenuItem(ICON_FK_DATABASE "  Banner Editor")){
+				mEditorContext.mOpenBannerEditor = true;
+			}
+			if	(ImGui::MenuItem(ICON_FK_WINDOW_MAXIMIZE "  Menu Editor")){
+				mEditorContext.mOpenMenuEditor = true;
+			}
+            if (ImGui::MenuItem(ICON_FK_PLAY "  Playtest")){
                 mEditorContext.onPlaytestCB();
+			}
 
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help"))
         {
-            ImGui::Text("Help Stuff");
+            if(ImGui::MenuItem(ICON_FK_GAMEPAD "  Controls")){
+				mEditorContext.mOpenControlsDialog = true;
+			}
             ImGui::EndMenu();
         }
 
         ImGui::EndMainMenuBar();
     }
 
-
-    if (openOptionsMenu || mEditorContext.mOpenRootFlag)
-    {
-        mOptionsMenu.OpenMenu();
-		mEditorContext.mOpenRootFlag = false;
-    }
+	if(openOptionsMenu){
+		mOptionsMenu.OpenMenu();
+	}
 
     ImGuizmo::BeginFrame();
 }

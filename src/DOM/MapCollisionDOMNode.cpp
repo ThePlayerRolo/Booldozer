@@ -10,6 +10,8 @@
 #include <mutex>
 #include "scene/EditorScene.hpp"
 
+#include <Options.hpp>
+
 namespace {
 	std::thread importModelThread {};
 	std::mutex importLock {};
@@ -128,7 +130,7 @@ void LMapCollisionDOMNode::RenderDetailsUI(float dt)
 
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 	if (ImGui::BeginPopupModal("Importing Obj", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoTitleBar))
 	{
         const ImU32 col = ImGui::GetColorU32(ImGuiCol_ButtonHovered);
@@ -139,7 +141,7 @@ void LMapCollisionDOMNode::RenderDetailsUI(float dt)
 		
 		importLock.lock();
 		if(isImportingCol == false){
-			std::cout << "[BooldozerEditor]: Joining Import Thread" << std::endl;
+			LGenUtility::Log << "[BooldozerEditor]: Joining Import Thread" << std::endl;
 			importModelThread.join();
 			ImGui::CloseCurrentPopup();
 		}
@@ -238,7 +240,7 @@ bool LMapCollisionDOMNode::Load(bStream::CMemoryStream* stream)
 		mModel.mTriangles.push_back(triangle);
 	}
 
-	std::cout << "[CollisionDOMNode]: Finished reading Collision File" << std::endl;
+	LGenUtility::Log << "[CollisionDOMNode]: Finished reading Collision File" << std::endl;
 
 	return false;
 }

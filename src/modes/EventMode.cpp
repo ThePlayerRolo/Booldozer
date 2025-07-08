@@ -12,16 +12,48 @@ LEventMode::~LEventMode(){
 
 void LEventMode::RenderLeafContextMenu(std::shared_ptr<LDoorDOMNode> node)
 {
-
+	
 }
 
-void LEventMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
+void LEventMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map, EEditorMode& mode)
 {
 	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar;
 	ImGui::Begin("sceneHierarchy", 0, window_flags);
-	ImGui::Text("Available Events");
-	ImGui::Separator();
+	//ImGui::Text("Available Events");
+	//ImGui::Separator();
 	
+	if(ImGui::BeginTabBar("##modeTabs")){
+		if(ImGui::BeginTabItem("Actors")){
+			mode = EEditorMode::Actor_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Waves")){
+			mode = EEditorMode::Enemy_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Doors")){
+			mode = EEditorMode::Door_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Paths")){
+			mode = EEditorMode::Path_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Items")){
+			mode = EEditorMode::Item_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Events")){
+			mode = EEditorMode::Event_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Boos")){
+			mode = EEditorMode::Boo_Mode;
+			ImGui::EndTabItem();
+		}
+		ImGui::EndTabBar();
+	}
+
 	auto events = current_map->GetChildrenOfType<LEventDataDOMNode>(EDOMNodeType::EventData);
 
 	window_flags = ImGuiWindowFlags_HorizontalScrollbar;
@@ -68,7 +100,7 @@ void LEventMode::RenderDetailsWindow(LSceneCamera* camera)
 			ImGui::Separator();
 
 			if(ImGui::Button("Save")){
-				std::cout << "[EventMode]: Saving Event Archive" << std::endl;
+				LGenUtility::Log << "[EventMode]: Saving Event Archive" << std::endl;
 				selection->mEventScript = mEditorScript.GetText();
 				selection->SaveEventArchive();
 			}
@@ -84,13 +116,13 @@ void LEventMode::RenderDetailsWindow(LSceneCamera* camera)
 	}
 }
 
-void LEventMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene)
+void LEventMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene, EEditorMode& mode)
 {
 
 	ImGuiWindowClass mainWindowOverride;
 	mainWindowOverride.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoTabBar;
 	ImGui::SetNextWindowClass(&mainWindowOverride);
-	RenderSceneHierarchy(current_map);
+	RenderSceneHierarchy(current_map, mode);
 
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 	RenderDetailsWindow(&renderer_scene->Camera);
@@ -102,16 +134,17 @@ void LEventMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* 
 }
 
 void LEventMode::RenderGizmo(LEditorScene* renderer_scene){
-	
+
 }
 
 void LEventMode::OnBecomeActive()
 {
-	std::cout << "[Booldozer]: Event mode switching in" << std::endl;
-	
+	CameraAnimation::SetPreviewActive();
+	LGenUtility::Log << "[Booldozer]: Event mode switching in" << std::endl;
 }
 
 void LEventMode::OnBecomeInactive()
 {
-	std::cout << "[Booldozer]: Event mode switching out" << std::endl;
+	CameraAnimation::SetPreviewInactive();
+	LGenUtility::Log << "[Booldozer]: Event mode switching out" << std::endl;
 }

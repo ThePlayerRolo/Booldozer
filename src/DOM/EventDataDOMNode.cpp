@@ -79,15 +79,26 @@ void LEventDataDOMNode::LoadEventArchive(std::shared_ptr<Archive::Rarc> arc, std
     mEventMessagePath = eventCsvName;
     mEventScriptPath = eventScriptName;
 
-    std::shared_ptr<Archive::File> msgFile = mEventArchive->GetFile(std::filesystem::path("message") / std::string(eventCsvName + ".csv"));
-    std::shared_ptr<Archive::File> txtFile = mEventArchive->GetFile(std::filesystem::path("text") / std::string(eventScriptName + ".txt"));
+    std::shared_ptr<Archive::File> msgFile = nullptr;
+    if(mEventArchive->GetFolder("message") != nullptr){
+       msgFile =  mEventArchive->GetFolder("message")->GetFiles()[0];
+    }
+
+    std::shared_ptr<Archive::File> txtFile = nullptr;
+    if(mEventArchive->GetFolder("text") != nullptr){
+        txtFile = mEventArchive->GetFolder("text")->GetFiles()[0];
+    }
+
+    std::sscanf(eventScriptName.data(), "event%02d", &mEventNo);
 
     if(msgFile != nullptr){
-        std::string messages = std::string((char*)msgFile->GetData(), msgFile->GetSize());
+        std::string messages = LGenUtility::SjisToUtf8(std::string((char*)msgFile->GetData(), msgFile->GetSize()));
         std::string msg = "";
         for(std::string::iterator c = messages.begin(); c < messages.end(); c++){
-            if(*c == '\n' && c != messages.begin() && *(c-1) == '\r'){
-                mEventText.push_back( LGenUtility::SjisToUtf8(msg));
+            if(*c == '\r' && c != messages.begin()){
+                std::erase(msg, '\r');
+                mEventText.push_back(msg);
+                if(*(c+1) == '\n') c++; // strip uselesss newlines from the front of things
                 msg = "";
             } else {
                 msg += (*c);
@@ -110,24 +121,30 @@ void LEventDataDOMNode::LoadEventArchive(std::shared_ptr<Archive::Rarc> arc, std
 
 }
 
-void LEventDataDOMNode::SaveEventArchive(){
-    std::shared_ptr<Archive::File> msgFile = mEventArchive->GetFile(std::filesystem::path("message") / std::string(mEventMessagePath + ".csv"));
-    std::shared_ptr<Archive::File> txtFile = mEventArchive->GetFile(std::filesystem::path("text") / std::string(mEventScriptPath + ".txt"));
+void LEventDataDOMNode::SaveEventArchive(bool createIfNotExist){
+    std::shared_ptr<Archive::File> msgFile = nullptr;
+    if(mEventArchive->GetFolder("message") != nullptr){
+       msgFile =  mEventArchive->GetFolder("message")->GetFiles()[0];
+    }
+
+    std::shared_ptr<Archive::File> txtFile = nullptr;
+    if(mEventArchive->GetFolder("text") != nullptr){
+        txtFile = mEventArchive->GetFolder("text")->GetFiles()[0];
+    }
 
 
     std::string msg = "";
-    for(auto str : mEventText){
-        msg += str;
+    for(std::size_t msgIdx = 0; msgIdx < mEventText.size(); msgIdx++){
+        msg += mEventText[msgIdx];
         msg += "\r\n";
     }
 
     std::string msgFileData = LGenUtility::Utf8ToSjis(msg);
-    
     std::string txtFileData = LGenUtility::Utf8ToSjis(mEventScript);
-    
+
     if(msgFile != nullptr){
         msgFile->SetData((uint8_t*)msgFileData.data(), msgFileData.size());
-    } else {
+    } else if(createIfNotExist){
         msgFile = Archive::File::Create();
         msgFile->SetName(std::string(mEventMessagePath + ".csv"));
         msgFile->SetData((uint8_t*)msgFileData.data(), msgFileData.size());
@@ -143,7 +160,7 @@ void LEventDataDOMNode::SaveEventArchive(){
 
     if(txtFile != nullptr){
         txtFile->SetData((uint8_t*)txtFileData.data(), txtFileData.size());
-    } else {
+    } else if(createIfNotExist){
         txtFile = Archive::File::Create();
         txtFile->SetName(std::string(mEventScriptPath + ".txt"));
         txtFile->SetData((uint8_t*)txtFileData.data(), txtFileData.size());
@@ -157,6 +174,6 @@ void LEventDataDOMNode::SaveEventArchive(){
         }
     }
 
-    std::cout << "[EventDOMNode]: Writing event to " << mEventPath << std::endl;
+    LGenUtility::Log << "[EventDOMNode]: Writing event to " << mEventPath << std::endl;
     mEventArchive->SaveToFile(mEventPath, Compression::Format::YAY0);
 }

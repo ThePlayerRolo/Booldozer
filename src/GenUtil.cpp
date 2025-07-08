@@ -2,7 +2,13 @@
 #include <unicode/ustring.h>
 #include <unicode/ucnv.h>
 
+#include <filesystem>
+#include <fstream>
 #include "GenUtil.hpp"
+
+// Log handlers
+std::fstream LGenUtility::Log;
+
 
 // The following was copied from https://gist.github.com/kilfu0701/e279e35372066ae1832850c438d5611e
 std::string LGenUtility::Utf8ToSjis(const std::string& value)

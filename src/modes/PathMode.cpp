@@ -11,11 +11,43 @@ LPathMode::LPathMode()
 	mGizmoMode = ImGuizmo::OPERATION::TRANSLATE;
 }
 
-void LPathMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
+void LPathMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map, EEditorMode& mode)
 {
 	ImGui::Begin("sceneHierarchy");
-	ImGui::Text("Rooms");
-	ImGui::Separator();
+	//ImGui::Text("Rooms");
+	//ImGui::Separator();
+	
+	if(ImGui::BeginTabBar("##modeTabs")){
+		if(ImGui::BeginTabItem("Actors")){
+			mode = EEditorMode::Actor_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Waves")){
+			mode = EEditorMode::Enemy_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Doors")){
+			mode = EEditorMode::Door_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Paths")){
+			mode = EEditorMode::Path_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Items")){
+			mode = EEditorMode::Item_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Events")){
+			mode = EEditorMode::Event_Mode;
+			ImGui::EndTabItem();
+		}
+		if(ImGui::BeginTabItem("Boos")){
+			mode = EEditorMode::Boo_Mode;
+			ImGui::EndTabItem();
+		}
+		ImGui::EndTabBar();
+	}
 
 	auto rooms = current_map->GetChildrenOfType<LRoomDOMNode>(EDOMNodeType::Room);
 	for (auto r : rooms)
@@ -81,7 +113,7 @@ void LPathMode::RenderSceneHierarchy(std::shared_ptr<LMapDOMNode> current_map)
 
 						if (LUIUtility::RenderNodeSelectable(point.get(), point->GetIsSelected() && bLastClickedWasPoint))
 						{
-							mPointSelection.AddToSelection(point);
+							mSelectionManager.AddToSelection(point);
 							bLastClickedWasPoint = true;
 						}
 						if (ImGui::BeginPopupContextItem(std::format("pointctx###{0}", j).c_str()))
@@ -117,29 +149,33 @@ void LPathMode::RenderDetailsWindow()
 	// Show point details
 	if (bLastClickedWasPoint)
 	{
-		if (mPointSelection.IsMultiSelection())
-			ImGui::Text("[Multiple Selection]");
-		else if (mPointSelection.GetPrimarySelection() != nullptr)
-			std::static_pointer_cast<LUIRenderDOMNode>(mPointSelection.GetPrimarySelection())->RenderDetailsUI(0);
-	}
-	// Show path details
-	else
-	{
 		if (mSelectionManager.IsMultiSelection())
 			ImGui::Text("[Multiple Selection]");
 		else if (mSelectionManager.GetPrimarySelection() != nullptr)
 			std::static_pointer_cast<LUIRenderDOMNode>(mSelectionManager.GetPrimarySelection())->RenderDetailsUI(0);
 	}
+	// Show path details
+	else
+	{
+		if(mPreviousSelection == mSelectionManager.GetPrimarySelection()){
+			if (mSelectionManager.IsMultiSelection())
+				ImGui::Text("[Multiple Selection]");
+			else if (mSelectionManager.GetPrimarySelection() != nullptr)
+				std::static_pointer_cast<LUIRenderDOMNode>(mSelectionManager.GetPrimarySelection())->RenderDetailsUI(0);
+		} else if(mPreviousSelection != nullptr){
+			std::static_pointer_cast<LUIRenderDOMNode>(mPreviousSelection)->RenderDetailsUI(0);
+		}
+	}
 
 	ImGui::End();
 }
 
-void LPathMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene)
+void LPathMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* renderer_scene, EEditorMode& mode)
 {
 	ImGuiWindowClass mainWindowOverride;
 	mainWindowOverride.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoTabBar;
 	ImGui::SetNextWindowClass(&mainWindowOverride);
-	RenderSceneHierarchy(current_map);
+	RenderSceneHierarchy(current_map, mode);
 
 	ImGui::SetNextWindowClass(&mainWindowOverride);
 	RenderDetailsWindow();
@@ -150,25 +186,24 @@ void LPathMode::Render(std::shared_ptr<LMapDOMNode> current_map, LEditorScene* r
 }
 
 void LPathMode::RenderGizmo(LEditorScene* renderer_scene){
-	if (mPointSelection.GetPrimarySelection() != nullptr)
+	if (mSelectionManager.GetPrimarySelection() != nullptr)
 	{
-		if (mPreviousSelection == nullptr || mPreviousSelection != mPointSelection.GetPrimarySelection()) {
-			mPreviousSelection = mPointSelection.GetPrimarySelection();
-			if (!mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).expired() && !renderer_scene->HasRoomLoaded(mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock()->GetRoomNumber())) {
-				renderer_scene->SetRoom(mPreviousSelection->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock());
-			}
+		if (!renderer_scene->HasRoomLoaded(mSelectionManager.GetPrimarySelection()->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock()->GetRoomNumber())) {
+			renderer_scene->SetRoom(mSelectionManager.GetPrimarySelection()->GetParentOfType<LRoomDOMNode>(EDOMNodeType::Room).lock());
 		}
 
-		glm::mat4* m = ((LBGRenderDOMNode*)(mPointSelection.GetPrimarySelection().get()))->GetMat();
+		glm::mat4* m = ((LBGRenderDOMNode*)(mSelectionManager.GetPrimarySelection().get()))->GetMat();
 		glm::mat4 view = renderer_scene->getCameraView();
 		glm::mat4 proj = renderer_scene->getCameraProj();
 
-		bool moved = ImGuizmo::Manipulate(&view[0][0], &proj[0][0], mGizmoMode, ImGuizmo::WORLD, &(*m)[0][0], NULL, NULL);
-
-		if(mPointSelection.GetPrimarySelection()->GetNodeType() == EDOMNodeType::PathPoint && moved){
-			renderer_scene->UpdateRenderers();
+		if(mSelectionManager.GetPrimarySelection()->GetNodeType() != EDOMNodeType::PathPoint){
+			bool moved = ImGuizmo::Manipulate(&view[0][0], &proj[0][0], mGizmoMode, ImGuizmo::WORLD, &(*m)[0][0], NULL, NULL);
+			if(mSelectionManager.GetPrimarySelection()->GetNodeType() == EDOMNodeType::PathPoint && moved){
+				renderer_scene->SetDirty();
+			}
 		}
 	}
+	mPreviousSelection = mSelectionManager.GetPrimarySelection();
 }
 
 bool LPathMode::RenderPointContextMenu(std::shared_ptr<LPathDOMNode> path, std::shared_ptr<LPathPointDOMNode> point)
@@ -177,13 +212,13 @@ bool LPathMode::RenderPointContextMenu(std::shared_ptr<LPathDOMNode> path, std::
 
 	if (ImGui::Selectable("Insert Point Above"))
 	{
-		ptrdiff_t index = LGenUtility::VectorIndexOf(path->Children, std::static_pointer_cast<LDOMNodeBase>(point));
+		std::ptrdiff_t index = LGenUtility::VectorIndexOf(path->Children, std::static_pointer_cast<LDOMNodeBase>(point));
 		path->AddChildAtIndex(std::make_shared<LPathPointDOMNode>("Path Point"), index);
 	}
 
 	if (ImGui::Selectable("Insert Point Below"))
 	{
-		ptrdiff_t index = LGenUtility::VectorIndexOf(path->Children, std::static_pointer_cast<LDOMNodeBase>(point));
+		std::ptrdiff_t index = LGenUtility::VectorIndexOf(path->Children, std::static_pointer_cast<LDOMNodeBase>(point));
 		path->AddChildAtIndex(std::make_shared<LPathPointDOMNode>("Path Point"), index + 1);
 	}
 
@@ -193,8 +228,8 @@ bool LPathMode::RenderPointContextMenu(std::shared_ptr<LPathDOMNode> path, std::
 	{
 		path->RemoveChild(point);
 
-		if (mPointSelection.GetPrimarySelection() == point)
-			mPointSelection.ClearSelection();
+		if (mSelectionManager.GetPrimarySelection() == point)
+			mSelectionManager.ClearSelection();
 
 		deleted = true;
 	}
@@ -245,12 +280,12 @@ void LPathMode::RenderRoomContextMenu(std::shared_ptr<LRoomDOMNode> room)
 
 void LPathMode::OnBecomeActive()
 {
-	std::cout << "[Booldozer]: Path mode switching in!" << std::endl;
+	LGenUtility::Log << "[Booldozer]: Path mode switching in!" << std::endl;
 }
 
 void LPathMode::OnBecomeInactive()
 {
-	std::cout << "[Booldozer]: Path mode switching out!" << std::endl;
+	LGenUtility::Log << "[Booldozer]: Path mode switching out!" << std::endl;
 }
 
 LPathDOMNode* LPathMode::GetPathDragDropNode()

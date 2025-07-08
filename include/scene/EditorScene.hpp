@@ -25,6 +25,7 @@
 
 #include "UPathRenderer.hpp"
 #include "UPointSpriteManager.hpp"
+#include "UPlaneRenderer.hpp"
 
 class LEditorScene {
     bool Initialized;
@@ -33,14 +34,15 @@ class LEditorScene {
     uint32_t mFbo, mRbo, mViewTex, mPickTex;
     uint32_t mPrevWidth, mPrevHeight;
 
+    CPlaneRenderer mMirrorRenderer;
     CPointSpriteManager mPointManager;
     CPathRenderer mPathRenderer;
     
     std::vector<std::weak_ptr<LDoorDOMNode>> mRoomDoors;
     std::vector<std::weak_ptr<LRoomDOMNode>> mCurrentRooms;
     
-    std::vector<std::shared_ptr<BinModel>> mDoorModels;
-    std::map<std::string, std::shared_ptr<BinModel>> mRoomModels;
+    std::vector<std::shared_ptr<BIN::Model>> mDoorModels;
+    std::map<std::string, std::shared_ptr<BIN::Model>> mRoomModels;
 
 
     std::map<std::string, std::unique_ptr<MDL::Model>> mActorModels;
@@ -56,7 +58,7 @@ class LEditorScene {
 
 public:
     LSceneCamera Camera;
-    std::map<std::string, std::shared_ptr<BinModel>> mRoomFurniture;
+    std::map<std::string, std::shared_ptr<BIN::Model>> mRoomFurniture;
     
     glm::mat4 getCameraView();
     glm::mat4 getCameraProj();
@@ -66,6 +68,7 @@ public:
 
     void SetRoom(std::shared_ptr<LRoomDOMNode> room);
     bool HasRoomLoaded(int32_t roomNumber);
+    void LoadActor(std::string name, bool log = true);
 
     void UpdateRenderers();
     void RenderSubmit(uint32_t m_width, uint32_t m_height);
